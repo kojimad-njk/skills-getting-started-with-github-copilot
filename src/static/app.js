@@ -20,11 +20,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+          const participantsList = details.participants.length > 0
+            ? `<div class="participants">
+                <h5>Current Participants:</h5>
+                <ul>
+                  ${details.participants.map(email => `
+                    <li>
+                      <span class="participant-email">${email}</span>
+                      <button class="delete-participant-btn" title="Remove participant" data-activity="${name}" data-email="${email}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#c62828" viewBox="0 0 16 16">
+                          <path d="M5.5 5.5v6m2.5-6v6m2.5-6v6M2.5 3.5h11m-1 0v9a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2v-9m3.5-2h2a1 1 0 0 1 1 1v1h-5v-1a1 1 0 0 1 1-1z" stroke="#c62828" stroke-width="1" fill="none"/>
+                        </svg>
+                      </button>
+                    </li>
+                  `).join('')}
+                </ul>
+              </div>`
+            : '<p class="no-participants">No participants yet</p>';
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          ${participantsList}
         `;
 
         activitiesList.appendChild(activityCard);
@@ -39,6 +58,42 @@ document.addEventListener("DOMContentLoaded", () => {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
     }
+    // 削除ボタンのイベントリスナーを追加
+    document.querySelectorAll('.delete-participant-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const activity = btn.getAttribute('data-activity');
+        const email = btn.getAttribute('data-email');
+        if (!activity || !email) return;
+        if (!confirm(`${email} を「${activity}」から削除しますか？`)) return;
+        try {
+          const res = await fetch(`/activities/${encodeURIComponent(activity)}/participants/${encodeURIComponent(email)}`, {
+            method: 'DELETE',
+          });
+          const result = await res.json();
+          if (res.ok) {
+            messageDiv.textContent = result.message;
+            messageDiv.className = "success";
+            messageDiv.classList.remove("hidden");
+            // 参加者リストを再取得
+            fetchActivities();
+          } else {
+            messageDiv.textContent = result.detail || "削除に失敗しました";
+            messageDiv.className = "error";
+            messageDiv.classList.remove("hidden");
+          }
+          setTimeout(() => {
+            messageDiv.classList.add("hidden");
+          }, 5000);
+        } catch (err) {
+          messageDiv.textContent = "削除リクエストに失敗しました";
+          messageDiv.className = "error";
+          messageDiv.classList.remove("hidden");
+          setTimeout(() => {
+            messageDiv.classList.add("hidden");
+          }, 5000);
+        }
+      });
+    });
   }
 
   // Handle form submission
@@ -62,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // 参加登録後にアクティビティ一覧を更新
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
